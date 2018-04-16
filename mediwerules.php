@@ -33,6 +33,17 @@ function mediwerules_civicrm_install() {
   if (!CRM_Mediwerules_Utils::civiRulesInstalled()) {
     throw new Exception(ts('The CiviRules extension is required but not installed on this environment. Please install CiviRules first and then try installing be.mediwe.mediwerules again'));
   }
+  if (!CRM_Mediwerules_Utils::mediweBasisInstalled()) {
+    throw new Exception(ts('The be.mediwe.basis extension is required but not installed on this environment. Please install be.mediwe.basis first and then try installing be.mediwe.mediwerules again'));
+  }
+  // add action arts toewijzen
+  CRM_Mediwerules_Utils::addAction([
+    'name' => "mediwe_arts_toewijzen",
+    'label' => "Automatisch toewijzen controlearts",
+    'class_name' => "CRM_Mediwerules_CivirulesActions_ArtsToewijzen",
+    'is_active' => 1,
+  ]);
+
   _mediwerules_civix_civicrm_install();
 }
 
@@ -65,6 +76,9 @@ function mediwerules_civicrm_enable() {
   }
   if (!CRM_Mediwerules_Utils::civiRulesInstalled()) {
     throw new Exception(ts('The CiviRules extension is required but not installed on this environment. Please install CiviRules first and then try enabling be.mediwe.mediwerules again'));
+  }
+  if (!CRM_Mediwerules_Utils::mediweBasisInstalled()) {
+    throw new Exception(ts('The be.mediwe.basis extension is required but not installed on this environment. Please install be.mediwe.basis first and then try installing be.mediwe.mediwerules again'));
   }
   _mediwerules_civix_civicrm_enable();
 }
