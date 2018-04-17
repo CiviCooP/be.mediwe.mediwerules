@@ -85,11 +85,18 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
   private function findControleArts() {
     $this->_controleArtsen = [];
     try {
-      $this->_controleArtsen = civicrm_api3('ControleArts', 'get', [
+      $findParams = [
         'mw_postcode' => $this->_bezoekPostcode,
         'mw_gemeente' => $this->_bezoekGemeente,
+        'mcc_automatisch_toewijzen' => 1,
         'options' => ['limit' => 0],
-      ])['values'];
+        ];
+      $voorafBelMoment = CRM_Basis_Config::singleton()->getVoorafBelMomentValue();
+      if (!empty($voorafBelMoment)) {
+        $findParams['mcc_arts_bel_moment'] = ['!=' => $voorafBelMoment];
+      }
+
+      $this->_controleArtsen = civicrm_api3('ControleArts', 'get', $findParams)['values'];
       // als ik artsen heb
       if (!empty($this->_controleArtsen)) {
         // check of de eerste arts binnen de afstand in de instellingen zit. Zo niet, dan niet automatisch toewijzen
