@@ -27,7 +27,7 @@
 class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Action {
 
   private $_activityData = [];
-  private $_activityContactData = [];
+  private $_toegewezenArtsId = NULL;
   private $_bezoekPostcode = NULL;
   private $_bezoekGemeente = NULL;
   private $_controleArtsen = [];
@@ -54,7 +54,7 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
     $this->_bezoekGemeente = $triggerData->getCustomFieldValue(CRM_Basis_Config::singleton()->getHuisbezoekGemeenteCustomField('id'));
     $this->_bezoekPostcode = $triggerData->getCustomFieldValue(CRM_Basis_Config::singleton()->getHuisbezoekPostcodeCustomField('id'));
     // vind alle relevante controleartsen
-    $this->findControleArtsen();
+    $this->findControleArts();
     // wijs huisbezoek toe aan eerste controlearts
     $this->assignControleArts();
   }
@@ -82,7 +82,7 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
   /**
    * Method om de beschikbare relevante controleartsen te vinden
    */
-  private function findControleArtsen() {
+  private function findControleArts() {
     $this->_controleArtsen = [];
     try {
       $this->_controleArtsen = civicrm_api3('ControleArts', 'get', [
@@ -96,8 +96,8 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
           unset($this->_controleArtsen[$key]);
         }
       }
-      // sorteren op resultaat, app gebruik en afstand
-      $this->sortControleArtsen();
+      // selecteren arts
+      $this->_toegewezenArtsId = $this->selectControleArts();
     }
     catch (CiviCRM_API3_Exception $ex) {
     }
@@ -115,15 +115,28 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
       return FALSE;
     }
     // arts mag niet controledag als vrije dag hebben en moet op deze tijd werken
+    $werktNietOp =  CRM_Basis_Config::singleton()->getArtsWerktNietOpCustomField('column_name');
+    if (!$controleArts[$werktNietOp]) {
+      $controleArts[$werktNietOp] = [];
+    }
+    $vanafTijd = CRM_Basis_Config::singleton()->getArtsWerktVanafTijdCustomField('column_name');
+    if ($controleArts[$vanafTijd]) {
+      $controleArts[$vanafTijd] = '00:01';
+    }
+    $totTijd = CRM_Basis_Config::singleton()->getArtsWerktTotTijdCustomField('column_name');
+    if ($controleArts[$totTijd]) {
+      $controleArts[$totTijd] = '23:59';
+    }
     if (CRM_Basis_ControleArts::checkArtsWerkt($this->_activityData['activity_date_time'],
-        $controleArts['id'], $controleArts[CRM_Basis_Config::singleton()->getArtsWerktNietOpCustomField('column_name')],
-        $controleArts[CRM_Basis_Config::singleton()->getArtsWerktVanafTijdCustomField('column_name')],
-        $controleArts[CRM_Basis_Config::singleton()->getArtsWerktTotTijdCustomField('column_name')]) == FALSE) {
+        $controleArts['id'], $controleArts[$werktNietOp], $controleArts[$vanafTijd], $controleArts[$totTijd]) == FALSE) {
       return FALSE;
     }
     // arts mag niet al zijn maximale aantal opdrachten hebben
-    if (CRM_Basis_ControleArts::checkArtsHeeftMaxBereikt($this->_activityData['activity_date_time'], $controleArts['id'],
-        $controleArts[CRM_Basis_Config::singleton()->getArtsMaxOpdrachtenCustomField('column_name')]) == TRUE) {
+    $max = CRM_Basis_Config::singleton()->getArtsMaxOpdrachtenCustomField('column_name');
+    if (!isset($controleArts[$max])) {
+      $controleArts[$max] = 999;
+    }
+    if (CRM_Basis_ControleArts::checkArtsHeeftMaxBereikt($this->_activityData['activity_date_time'], $controleArts['id'], $controleArts[$max]) == TRUE) {
      return FALSE;
     }
     // arts mag niet uitgesloten zijn voor klant of klant medewerker
@@ -137,8 +150,55 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
     return TRUE;
   }
 
-  private function sortControleArtsen() {
+  /**
+   * Method om de toe te wijzen arts te selecteren uit de overgebleven artsen
+   *
+   * @return int
+   */
+  private function selectControleArts() {
+    // als er maar eentje is hoef ik verder niks te doen
+    $count = count($this->_controleArtsen);
+    if ($count == 1) {
+      return $this->_controleArtsen[0]['contact_id'];
+    }
+    $maxAfwijkingApp = Civi::settings()->get('mediwe_afwijking_resultaat_app');
+    $appColumnName = CRM_Basis_Config::singleton()->getArtsGebruiktAppCustomField('name');
+    $pctColumnName = CRM_Basis_Config::singleton()->getArtsPercentageAkkoordCustomField('name');
+    // eerst index en resultaatpercentage in array en dan sorteren van hoog naar laag
+    $resultArray = [];
+    foreach ($this->_controleArtsen as $artsKey => $arts) {
+      if (!isset($arts[$pctColumnName])) {
+        $arts[$pctColumnName] = 0;
+      }
+      if (!isset($arts[$appColumnName])) {
+        $arts[$appColumnName] = 0;
+      }
+      $resultArray[] = [
+        $pctColumnName => $arts[$pctColumnName],
+        $appColumnName => $arts[$appColumnName],
+        'contact_id' => $arts['contact_id'],
+      ];
+    }
+    rsort($resultArray);
+    // als de eerste een app gebruiker is, gebruik die
+    if ($resultArray[0][$appColumnName] == 1) {
+      return $resultArray[0]['contact_id'];
+    } else {
+      $bestId = $resultArray[0]['contact_id'];
+      $bestPct = $resultArray[0][$pctColumnName];
+      // zo niet, loop door array en pak eerste app gebruiker binnen afwijking (of
+      // blijf eerste gebruiker als niks gevonden)
+      for ($i = 1; $i < $count; $i++) {
+        if ($resultArray[$i][$appColumnName] == 1) {
+          $afwijking = $bestPct - $resultArray[$i][$pctColumnName];
+          if ($afwijking <= $maxAfwijkingApp) {
+            $bestId = $resultArray[$i]['contact_id'];
+          }
 
+        }
+      }
+    }
+    return $bestId;
   }
   private function assignControleArts() {
 
