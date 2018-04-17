@@ -110,8 +110,6 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
    * @return bool
    */
   private function checkValideArts($controleArts) {
-    CRM_Core_Error::debug('controle arts', $controleArts);
-
     // arts mag niet op vakantie zijn
     if (CRM_Basis_ControleArts::isOpVakantie($this->_activityData['activity_date_time'], $controleArts['id']) == TRUE) {
       return FALSE;
@@ -126,14 +124,14 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
     // arts mag niet al zijn maximale aantal opdrachten hebben
     if (CRM_Basis_ControleArts::checkArtsHeeftMaxBereikt($this->_activityData['activity_date_time'], $controleArts['id'],
         $controleArts[CRM_Basis_Config::singleton()->getArtsMaxOpdrachtenCustomField('column_name')]) == TRUE) {
-      return FALSE;
+     return FALSE;
     }
     // arts mag niet uitgesloten zijn voor klant of klant medewerker
     if (CRM_Basis_ControleArts::checkArtsUitgesloten($controleArts['id'], $this->_medewerkerId) == TRUE) {
       return FALSE;
     }
     // arts mag niet genoeg voor vandaag aangegeven hebben
-    if (CRM_Basis_ControleArts::checkArtsGenoegVandaag($controleArts) == TRUE) {
+    if (CRM_Basis_ControleArts::checkArtsGenoegVandaag($controleArts['id']) == TRUE) {
       return FALSE;
     }
     return TRUE;
