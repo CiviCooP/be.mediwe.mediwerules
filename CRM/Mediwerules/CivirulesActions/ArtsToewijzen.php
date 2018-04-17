@@ -28,6 +28,7 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
 
   private $_activityData = [];
   private $_toegewezenArtsId = NULL;
+  private $_bezoekAdres = NULL;
   private $_bezoekPostcode = NULL;
   private $_bezoekGemeente = NULL;
   private $_controleArtsen = [];
@@ -51,12 +52,11 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
   public function processAction(CRM_Civirules_TriggerData_TriggerData $triggerData) {
     $this->_activityData = $triggerData->getEntityData('activity');
     $this->getMedewerkerFromActivity();
+    $this->_bezoekAdres = $triggerData->getCustomFieldValue(CRM_Basis_Config::singleton()->getHuisbezoekAdresCustomField('id'));
     $this->_bezoekGemeente = $triggerData->getCustomFieldValue(CRM_Basis_Config::singleton()->getHuisbezoekGemeenteCustomField('id'));
     $this->_bezoekPostcode = $triggerData->getCustomFieldValue(CRM_Basis_Config::singleton()->getHuisbezoekPostcodeCustomField('id'));
     // vind alle relevante controleartsen
     $this->findControleArts();
-    // wijs huisbezoek toe aan eerste controlearts
-    $this->assignControleArts();
   }
 
   /**
@@ -90,17 +90,56 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
         'mw_gemeente' => $this->_bezoekGemeente,
         'options' => ['limit' => 0],
       ])['values'];
-      // nu de uit te sluiten artsen verwijderen
-      foreach ($this->_controleArtsen as $key => $controleArts) {
-        if ($this->checkValideArts($controleArts) == FALSE) {
-          unset($this->_controleArtsen[$key]);
+      // als ik artsen heb
+      if (!empty($this->_controleArtsen)) {
+        // check of de eerste arts binnen de afstand in de instellingen zit. Zo niet, dan niet automatisch toewijzen
+        if ($this->checkBinnenAfstandSetting() == TRUE) {
+          // nu de uit te sluiten artsen verwijderen
+          foreach ($this->_controleArtsen as $key => $controleArts) {
+            if ($this->checkValideArts($controleArts) == FALSE) {
+              unset($this->_controleArtsen[$key]);
+            }
+          }
+          // selecteren arts
+          $this->_toegewezenArtsId = $this->selectControleArts();
+          // wijs huisbezoek toe aan eerste controlearts
+          $this->assignControleArts();
         }
       }
-      // selecteren arts
-      $this->_toegewezenArtsId = $this->selectControleArts();
     }
     catch (CiviCRM_API3_Exception $ex) {
     }
+  }
+
+  /**
+   * Method om te controleren of er resultaten zijn binnen de ingestelde maximale afstand
+   * (hoeft alleen de eerste te controleren)
+   *
+   * @return bool
+   */
+  private function checkBinnenAfstandSetting() {
+    if (!empty($this->_controleArtsen)) {
+      $maxAfstand = Civi::settings()->get('mediwe_max_afstand_huisbezoek');
+      if (!empty($this->_controleArtsen[0]['street_address']) && !empty($this->_controleArtsen[0]['postal_code']) && !empty($this->_controleArtsen[0]['city'])) {
+        try {
+          $google = civicrm_api3('Google', 'afstand', [
+            'adres' => $this->_bezoekAdres,
+            'postcode' => $this->_bezoekPostcode,
+            'gemeente' => $this->_bezoekGemeente,
+            'adres_arts' => $this->_controleArtsen[0]['street_address'],
+            'postcode_arts' => $this->_controleArtsen[0]['postal_code'],
+            'gemeente_arts' => $this->_controleArtsen[0]['city'],
+          ]);
+          if (isset($google['values']['km'])) {
+            if ($google['values']['km'] > $maxAfstand) {
+              return FALSE;
+            }
+          }
+        } catch (CiviCRM_API3_Exception $ex) {
+        }
+      }
+    }
+    return TRUE;
   }
 
   /**
@@ -116,15 +155,15 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
     }
     // arts mag niet controledag als vrije dag hebben en moet op deze tijd werken
     $werktNietOp =  CRM_Basis_Config::singleton()->getArtsWerktNietOpCustomField('column_name');
-    if (!$controleArts[$werktNietOp]) {
+    if (!isset($controleArts[$werktNietOp])) {
       $controleArts[$werktNietOp] = [];
     }
     $vanafTijd = CRM_Basis_Config::singleton()->getArtsWerktVanafTijdCustomField('column_name');
-    if ($controleArts[$vanafTijd]) {
+    if (isset($controleArts[$vanafTijd])) {
       $controleArts[$vanafTijd] = '00:01';
     }
     $totTijd = CRM_Basis_Config::singleton()->getArtsWerktTotTijdCustomField('column_name');
-    if ($controleArts[$totTijd]) {
+    if (!isset($controleArts[$totTijd])) {
       $controleArts[$totTijd] = '23:59';
     }
     if (CRM_Basis_ControleArts::checkArtsWerkt($this->_activityData['activity_date_time'],
@@ -200,9 +239,25 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
     }
     return $bestId;
   }
+
+  /**
+   * Method om de toegewezen arts vast te leggen
+   */
   private function assignControleArts() {
-
+    if (!empty($this->_toegewezenArtsId)) {
+      if (isset($this->_activityData['activity_id'])) {
+        try {
+          civicrm_api3('ActivityContact', 'create', [
+            'activity_id' => $this->_activityData['activity_id'],
+            'contact_id' => $this->_toegewezenArtsId,
+            'record_type_id' => CRM_Basis_Config::singleton()->getAssigneeRecordTypeId(),
+          ]);
+        } catch (CiviCRM_API3_Exception $ex) {
+          CRM_Core_Error::debug_log_message(ts('Could not assign huisbezoek in ' . __METHOD__
+            . ', message from API ActivityContact create: ' . $ex->getMessage()));
+        }
+      }
+    }
   }
-
 
 }
