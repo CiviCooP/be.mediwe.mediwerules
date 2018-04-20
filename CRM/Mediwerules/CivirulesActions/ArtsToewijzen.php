@@ -52,12 +52,66 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
   public function processAction(CRM_Civirules_TriggerData_TriggerData $triggerData) {
     $this->_activityData = $triggerData->getEntityData('activity');
     $this->getMedewerkerFromActivity();
-    $this->_bezoekAdres = $triggerData->getCustomFieldValue(CRM_Basis_Config::singleton()->getHuisbezoekAdresCustomField('id'));
-    $this->_bezoekGemeente = $triggerData->getCustomFieldValue(CRM_Basis_Config::singleton()->getHuisbezoekGemeenteCustomField('id'));
-    $this->_bezoekPostcode = $triggerData->getCustomFieldValue(CRM_Basis_Config::singleton()->getHuisbezoekPostcodeCustomField('id'));
-    // vind alle relevante controleartsen
-    $this->findControleArts();
+    if ($this->getAdresUitHuisbezoek() != FALSE && $this->checkHeeftControleArts() == FALSE) {
+      // vind alle relevante controleartsen
+      $this->findControleArts();
+    }
   }
+
+  /**
+   * Method om te controleren of de activiteit huisbezoek al toegewezen is aan een controle arts
+   *
+   * @return bool
+   */
+  private function checkHeeftControleArts() {
+    if (isset($this->_activityData['activity_id']) && !empty($this->_activityData['activity_id'])) {
+      $query = "SELECT COUNT(*) FROM civicrm_activity_contact WHERE activity_id = %1 AND record_type_id = %2";
+      $count = CRM_Core_DAO::singleValueQuery($query, [
+        1 => [$this->_activityData['activity_id'], 'Integer'],
+        2 => [CRM_Basis_Config::singleton()->getAssigneeRecordTypeId(), 'Integer'],
+      ]);
+      if ($count > 0) {
+        return TRUE;
+      }
+    } else {
+      CRM_Core_Error::debug_log_message(ts('Geen activity_id in property _activityData, toewijzen arts mislukt in ' . __METHOD__));
+      return TRUE;
+    }
+    return FALSE;
+  }
+
+  /**
+   * Method om bezoekadres van huisbezoek op te halen
+   *
+   * @return bool
+   */
+  private function getAdresUitHuisbezoek() {
+    if (empty($this->_activityData['activity_id'])) {
+      CRM_Core_Error::debug_log_message(ts('Toewijzen controlearts mislukt - geen activity_id in property _activityData in ' . __METHOD__));
+      return FALSE;
+    }
+    // haal bezoek adres op
+    $query = "SELECT * FROM " . CRM_Basis_Config::singleton()->getMedischeControleHuisbezoekCustomGroup('table_name')
+      . " WHERE entity_id = %1";
+    $dao = CRM_Core_DAO::executeQuery($query, [1 => [$this->_activityData['activity_id'], 'Integer']]);
+    if ($dao->fetch()) {
+      $columnProperties = [
+        '_bezoekAdres' => CRM_Basis_Config::singleton()->getHuisbezoekAdresCustomField('column_name'),
+        '_bezoekPostcode' => CRM_Basis_Config::singleton()->getHuisbezoekPostcodeCustomField('column_name'),
+        '_bezoekGemeente' => CRM_Basis_Config::singleton()->getHuisbezoekGemeenteCustomField('column_name'),
+      ];
+      foreach ($columnProperties as $property => $columnName) {
+        if (isset($dao->$columnName)) {
+          $this->$property = $dao->$columnName;
+        } else {
+          $this->$property = '';
+        }
+      }
+      return TRUE;
+    }
+    return FALSE;
+  }
+
 
   /**
    * Method om medewerker te vinden gebaseerd op de huisbezoek case activiteit (target)
@@ -158,7 +212,7 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
   private function checkValideArts($controleArts) {
     // arts mag niet op vakantie zijn
     if (CRM_Basis_ControleArts::isOpVakantie($this->_activityData['activity_date_time'], $controleArts['id']) == TRUE) {
-      CRM_Core_Error::debug_log_message('arts ' . $controleArts['id'] . ' is op vakantie');
+      CRM_Core_Error::debug_log_message('arts ' . $controleArts['id'] . ' is op vakantie (activiteit ' . $this->_activityData['activity_id'] . ')');
       return FALSE;
     }
     // arts mag niet controledag als vrije dag hebben en moet op deze tijd werken
@@ -166,17 +220,9 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
     if (!isset($controleArts[$werktNietOp])) {
       $controleArts[$werktNietOp] = [];
     }
-    $vanafTijd = CRM_Basis_Config::singleton()->getArtsWerktVanafTijdCustomField('column_name');
-    if (isset($controleArts[$vanafTijd])) {
-      $controleArts[$vanafTijd] = '00:01';
-    }
-    $totTijd = CRM_Basis_Config::singleton()->getArtsWerktTotTijdCustomField('column_name');
-    if (!isset($controleArts[$totTijd])) {
-      $controleArts[$totTijd] = '23:59';
-    }
     if (CRM_Basis_ControleArts::checkArtsWerkt($this->_activityData['activity_date_time'],
-        $controleArts['id'], $controleArts[$werktNietOp], $controleArts[$vanafTijd], $controleArts[$totTijd]) == FALSE) {
-      CRM_Core_Error::debug_log_message('arts ' . $controleArts['id'] . ' werkt niet');
+        $controleArts['id'], $controleArts[$werktNietOp]) == FALSE) {
+      CRM_Core_Error::debug_log_message('arts ' . $controleArts['id'] . ' werkt niet op ' . $this->_activityData['activity_date_time'] . ' (activiteit ' . $this->_activityData['activity_id'] . ')');
       return FALSE;
     }
     // arts mag niet al zijn maximale aantal opdrachten hebben
@@ -185,17 +231,17 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
       $controleArts[$max] = 999;
     }
     if (CRM_Basis_ControleArts::checkArtsHeeftMaxBereikt($this->_activityData['activity_date_time'], $controleArts['id'], $controleArts[$max]) == TRUE) {
-      CRM_Core_Error::debug_log_message('arts ' . $controleArts['id'] . ' heeft max');
+      CRM_Core_Error::debug_log_message('arts ' . $controleArts['id'] . ' heeft max (activiteit ' . $this->_activityData['activity_id'] . ')');
       return FALSE;
     }
     // arts mag niet uitgesloten zijn voor klant of klant medewerker
     if (CRM_Basis_ControleArts::checkArtsUitgesloten($controleArts['id'], $this->_medewerkerId) == TRUE) {
-      CRM_Core_Error::debug_log_message('arts ' . $controleArts['id'] . ' uitgesloten');
+      CRM_Core_Error::debug_log_message('arts ' . $controleArts['id'] . ' uitgesloten (activiteit ' . $this->_activityData['activity_id'] . ')');
       return FALSE;
     }
     // arts mag niet genoeg voor vandaag aangegeven hebben
     if (CRM_Basis_ControleArts::checkArtsGenoegVandaag($controleArts['id']) == TRUE) {
-      CRM_Core_Error::debug_log_message('arts ' . $controleArts['id'] . ' genoeg voor vandaag');
+      CRM_Core_Error::debug_log_message('arts ' . $controleArts['id'] . ' genoeg voor vandaag (activiteit ' . $this->_activityData['activity_id'] . ')');
       return FALSE;
     }
     return TRUE;
@@ -262,7 +308,6 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
           civicrm_api3('Activity', 'create', [
             'id' => $this->_activityData['activity_id'],
             'assignee_id' => $this->_toegewezenArtsId,
-            //'record_type_id' => CRM_Basis_Config::singleton()->getAssigneeRecordTypeId(),
           ]);
         } catch (CiviCRM_API3_Exception $ex) {
           CRM_Core_Error::debug_log_message(ts('Could not assign huisbezoek in ' . __METHOD__
