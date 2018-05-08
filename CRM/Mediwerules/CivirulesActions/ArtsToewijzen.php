@@ -261,7 +261,7 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
     $maxAfwijkingApp = Civi::settings()->get('mediwe_afwijking_resultaat_app');
     $appColumnName = CRM_Basis_Config::singleton()->getArtsGebruiktAppCustomField('name');
     $pctColumnName = CRM_Basis_Config::singleton()->getArtsPercentageAkkoordCustomField('name');
-    // eerst index en resultaatpercentage in array en dan sorteren van hoog naar laag
+    // eerst index en goedkeuringspercentage in array en dan sorteren van laag naar hoog
     $resultArray = [];
     foreach ($this->_controleArtsen as $artsKey => $arts) {
       if (!isset($arts[$pctColumnName])) {
@@ -276,7 +276,7 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
         'contact_id' => $arts['contact_id'],
       ];
     }
-    rsort($resultArray);
+    sort($resultArray);
     // als de eerste een app gebruiker is, gebruik die
     if ($resultArray[0][$appColumnName] == 1) {
       return $resultArray[0]['contact_id'];
