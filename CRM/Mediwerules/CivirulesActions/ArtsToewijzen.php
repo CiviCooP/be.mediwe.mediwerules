@@ -141,7 +141,6 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
     try {
       $findParams = [
         'mw_postcode' => $this->_bezoekPostcode,
-        'mw_gemeente' => $this->_bezoekGemeente,
         'mcc_automatisch_toewijzen' => 1,
         'options' => ['limit' => 0],
         ];
