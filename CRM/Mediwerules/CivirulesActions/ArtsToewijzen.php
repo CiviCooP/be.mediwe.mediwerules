@@ -50,11 +50,31 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
    * @param CRM_Civirules_TriggerData_TriggerData $triggerData
    */
   public function processAction(CRM_Civirules_TriggerData_TriggerData $triggerData) {
-    $this->_activityData = $triggerData->getEntityData('activity');
-    $this->getMedewerkerFromActivity();
-    if ($this->getAdresUitHuisbezoek() != FALSE && $this->checkHeeftControleArts() == FALSE) {
-      // vind alle relevante controleartsen
-      $this->findControleArts();
+    // alleen verwerken als het binnen het tijdspad van de instellingen valt
+    if ($this->fitsTimeSettings() == TRUE) {
+      $this->_activityData = $triggerData->getEntityData('activity');
+      $this->getMedewerkerFromActivity();
+      if ($this->getAdresUitHuisbezoek() != FALSE && $this->checkHeeftControleArts() == FALSE) {
+        // vind alle relevante controleartsen
+        $this->findControleArts();
+      }
+    }
+  }
+
+  /**
+   * Method om te controleren of automatisch toewijzen nu ook mag
+   *
+   * @return bool
+   */
+  private function fitsTimeSettings() {
+    $startTijd = Civi::settings()->get('mediwe_automatisch_controlearts_start_tijd');
+    $eindTijd = Civi::settings()->get('mediwe_automatisch_controlearts_eind_tijd');
+    $huidig = new DateTime();
+    if ($huidig->format('H:i:s') >= $startTijd && $huidig->format('H:i:s') <= $eindTijd) {
+      return TRUE;
+    }
+    else {
+      return FALSE;
     }
   }
 
