@@ -27,6 +27,7 @@
 class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Action {
 
   private $_activityData = [];
+  private $_caseData = [];
   private $_toegewezenArtsId = NULL;
   private $_bezoekAdres = NULL;
   private $_bezoekPostcode = NULL;
@@ -54,6 +55,7 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
     // alleen verwerken als het binnen het tijdspad van de instellingen valt
     if ($this->fitsTimeSettings() == TRUE) {
       $this->_activityData = $triggerData->getEntityData('activity');
+      $this->_caseData = $triggerData->getEntityData('case');
       $this->getMedewerkerFromActivity();
       if ($this->getAdresUitHuisbezoek() != FALSE && $this->checkHeeftControleArts() == FALSE) {
         // vind alle relevante controleartsen
@@ -260,7 +262,7 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
       return FALSE;
     }
     // arts mag niet genoeg voor vandaag aangegeven hebben
-    if (CRM_Basis_ControleArts::checkArtsGenoegVandaag($controleArts['id']) == TRUE) {
+    if (CRM_Basis_ControleArts::checkArtsGenoegVandaag($controleArts['id'], $this->_activityData['activity_date_time']) == TRUE) {
       Civi::log()->info('arts ' . $controleArts['id'] . ' genoeg voor vandaag (activiteit ' . $this->_activityData['activity_id'] . ')');
       return FALSE;
     }
