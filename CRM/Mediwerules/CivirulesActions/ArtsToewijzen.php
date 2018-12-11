@@ -50,6 +50,7 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
    * @param CRM_Civirules_TriggerData_TriggerData $triggerData
    */
   public function processAction(CRM_Civirules_TriggerData_TriggerData $triggerData) {
+    Civi::log()->debug('Komt wel bij het uitvoeren van de actie');
     // alleen verwerken als het binnen het tijdspad van de instellingen valt
     if ($this->fitsTimeSettings() == TRUE) {
       $this->_activityData = $triggerData->getEntityData('activity');
@@ -272,6 +273,7 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
    * @return int
    */
   private function selectControleArts() {
+    $bestId = NULL;
     // als er maar eentje is hoef ik verder niks te doen
     $count = count($this->_controleArtsen);
     if ($count == 1) {
@@ -299,18 +301,21 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
     // als de eerste een app gebruiker is, gebruik die
     if ($resultArray[0][$appColumnName] == 1) {
       return $resultArray[0]['contact_id'];
-    } else {
-      $bestId = $resultArray[0]['contact_id'];
-      $bestPct = $resultArray[0][$pctColumnName];
-      // zo niet, loop door array en pak eerste app gebruiker binnen afwijking (of
-      // blijf eerste gebruiker als niks gevonden)
-      for ($i = 1; $i < $count; $i++) {
-        if ($resultArray[$i][$appColumnName] == 1) {
-          $afwijking = $bestPct - $resultArray[$i][$pctColumnName];
-          if ($afwijking <= $maxAfwijkingApp) {
-            $bestId = $resultArray[$i]['contact_id'];
-          }
+    }
+    else {
+      if (isset($resultArray[0]['contact_id'])) {
+        $bestId = $resultArray[0]['contact_id'];
+        $bestPct = $resultArray[0][$pctColumnName];
+        // zo niet, loop door array en pak eerste app gebruiker binnen afwijking (of
+        // blijf eerste gebruiker als niks gevonden)
+        for ($i = 1; $i < $count; $i++) {
+          if ($resultArray[$i][$appColumnName] == 1) {
+            $afwijking = $bestPct - $resultArray[$i][$pctColumnName];
+            if ($afwijking <= $maxAfwijkingApp) {
+              $bestId = $resultArray[$i]['contact_id'];
+            }
 
+          }
         }
       }
     }
