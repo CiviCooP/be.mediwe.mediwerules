@@ -51,7 +51,6 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
    * @param CRM_Civirules_TriggerData_TriggerData $triggerData
    */
   public function processAction(CRM_Civirules_TriggerData_TriggerData $triggerData) {
-    Civi::log()->debug('Komt wel bij het uitvoeren van de actie');
     // alleen verwerken als het binnen het tijdspad van de instellingen valt
     if ($this->fitsTimeSettings() == TRUE) {
       $this->_activityData = $triggerData->getEntityData('activity');
@@ -186,6 +185,11 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
           $this->_toegewezenArtsId = $this->selectControleArts();
           // wijs huisbezoek toe aan eerste controlearts
           $this->assignControleArts();
+          // issue 3787 verstuur kopie email
+          if ($this->_toegewezenArtsId) {
+            $kopieBevestingsmail = new CRM_Basis_Acties_BevestigingEmailKlant($this->_caseData['id']);
+            $kopieBevestingsmail->mediweCopyMetArts($this->_toegewezenArtsId);
+          }
         }
       }
     }
