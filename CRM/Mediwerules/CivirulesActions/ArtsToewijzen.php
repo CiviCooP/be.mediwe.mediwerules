@@ -1,4 +1,6 @@
 <?php
+use CRM_Mediwerules_ExtensionUtil as E;
+
 /**
  * Class voor de CiviRules action Controlearts toewijzen:
  * als eerste zoeken we alle beschikbare controle artsen waarbij de postcode van het huisbezoek adres in het werkgebied van de controle arts voorkomt,
@@ -223,6 +225,8 @@ class CRM_Mediwerules_CivirulesActions_ArtsToewijzen extends CRM_Civirules_Actio
             }
           }
         } catch (CiviCRM_API3_Exception $ex) {
+          Civi::log()->info(E::ts('Kan niet automatisch toewijzen aan arts, Google afstand API geeft fout : ') . $ex->getMessage());
+          return FALSE;
         }
       }
     }
