@@ -32,28 +32,6 @@ class CRM_Mediwerules_Utils {
   }
 
   /**
-   * Method to check if basis extension has been installed
-   * @return bool
-   */
-  public static function mediweBasisInstalled() {
-    try {
-      $extStatus = civicrm_api3('Extension', 'getvalue', [
-        'return' => "status",
-        'full_name' => "be.mediwe.basis",
-      ]);
-      if ($extStatus == 'installed') {
-        return TRUE;
-      }
-      else {
-        return FALSE;
-      }
-    }
-    catch (CiviCRM_API3_Exception $ex) {
-      return FALSE;
-    }
-  }
-
-  /**
    * Method to add a civirule action
    * @param $data
    */

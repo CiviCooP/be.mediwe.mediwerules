@@ -27,13 +27,18 @@ function mediwerules_civicrm_xmlMenu(&$files) {
  * @link http://wiki.civicrm.org/confluence/display/CRMDOC/hook_civicrm_install
  */
 function mediwerules_civicrm_install() {
-  if (!class_exists('CRM_Mediwerules_Utils')) {
-    require_once 'CRM/Mediwerules/Utils.php';
+  if (!class_exists('CRM_Basis_Utils')) {
+    try {
+      require_once 'CRM/Basis/Utils.php';
+    }
+    catch (Exception $ex) {
+      throw new Exception(ts('The be.mediwe.basis extension is required but not installed on this environment. Please install be.mediwe.basis first and then try installing be.mediwe.mediwerules again'));
+    }
   }
   if (!CRM_Mediwerules_Utils::civiRulesInstalled()) {
-    throw new Exception(ts('The CiviRules extension is required but not installed on this environment. Please install CiviRules first and then try installing be.mediwe.mediwerules again'));
+    throw new Exception(ts('The CiviRules extension is required but not installed on this environment. Please install CiviRules first and then try enabling be.mediwe.mediwerules again'));
   }
-  if (!CRM_Mediwerules_Utils::mediweBasisInstalled()) {
+  if (!CRM_Basis_Utils::mediweBasisInstalled()) {
     throw new Exception(ts('The be.mediwe.basis extension is required but not installed on this environment. Please install be.mediwe.basis first and then try installing be.mediwe.mediwerules again'));
   }
   // add action arts toewijzen
@@ -71,13 +76,18 @@ function mediwerules_civicrm_uninstall() {
  * @link http://wiki.civicrm.org/confluence/display/CRMDOC/hook_civicrm_enable
  */
 function mediwerules_civicrm_enable() {
-  if (!class_exists('CRM_Mediwerules_Utils')) {
-    require_once 'CRM/Mediwerules/Utils.php';
+  if (!class_exists('CRM_Basis_Utils')) {
+    try {
+      require_once 'CRM/Basis/Utils.php';
+    }
+    catch (Exception $ex) {
+      throw new Exception(ts('The be.mediwe.basis extension is required but not installed on this environment. Please install be.mediwe.basis first and then try installing be.mediwe.mediwerules again'));
+    }
   }
   if (!CRM_Mediwerules_Utils::civiRulesInstalled()) {
     throw new Exception(ts('The CiviRules extension is required but not installed on this environment. Please install CiviRules first and then try enabling be.mediwe.mediwerules again'));
   }
-  if (!CRM_Mediwerules_Utils::mediweBasisInstalled()) {
+  if (!CRM_Basis_Utils::mediweBasisInstalled()) {
     throw new Exception(ts('The be.mediwe.basis extension is required but not installed on this environment. Please install be.mediwe.basis first and then try installing be.mediwe.mediwerules again'));
   }
   _mediwerules_civix_civicrm_enable();

@@ -14,13 +14,13 @@
     <url desc="Support">https://civicoop.org</url>
     <url desc="Licensing">http://www.gnu.org/licenses/agpl-3.0.html</url>
   </urls>
-  <releaseDate>2018-01-08</releaseDate>
-  <version>1.2.3</version>
-  <develStage>beta</develStage>
+  <releaseDate>2019-01-25</releaseDate>
+  <version>1.2.4</version>
+  <develStage>stable</develStage>
   <compatibility>
     <ver>4.7</ver>
   </compatibility>
-  <comments>Extension is being tested</comments>
+  <comments>Extension is used on production</comments>
   <civix>
     <namespace>CRM/Mediwerules</namespace>
   </civix>
